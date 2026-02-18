@@ -1,0 +1,290 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "postgresql"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Usuario del sistema
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relación con el progreso del usuario
+  userProgress    UserProgress[]
+  badges         Badge[]
+  levelHistory    LevelHistory[]
+  
+  @@index([email])
+}
+
+// Progreso del usuario en el sistema
+model UserProgress {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Estadísticas globales
+  totalPoints      Int       @default(0)
+  currentLevel     Int       @default(1)
+  totalXP         Int       @default(0)
+  currentStreak   Int       @default(0)
+  maxStreak        Int       @default(0)
+  worldsCompleted  Int       @default(0)
+  challengesSolved Int       @default(0)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@unique([userId])
+}
+
+// Mundos del juego (9 mundos)
+model World {
+  id              String    @id @default(cuid())
+  order           Int       @unique // Orden de los mundos (1-9)
+  name            String
+  description     String    @db.Text
+  color           String    // Color temática del mundo
+  icon            String    // Emoji o icono del mundo
+  
+  // Requisitos para desbloquear
+  requiredLevel   Int       @default(1)
+  requiredXP     Int       @default(0)
+  
+  // Configuración del mundo
+  totalLevels     Int       @default(3) // 3 niveles por mundo
+  totalChallenges Int       @default(9) // 3 retos por nivel
+  
+  // Relaciones
+  levels          Level[]
+  userWorldProgress UserWorldProgress[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([order])
+}
+
+// Niveles dentro de cada mundo
+model Level {
+  id              String    @id @default(cuid())
+  worldId         String
+  world           World     @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  
+  order           Int       // Orden dentro del mundo (1-3)
+  name            String
+  description     String    @db.Text
+  
+  // Configuración del nivel
+  totalChallenges Int       @default(3) // 3 retos por nivel
+  pointsPerChallenge Int   @default(10) // Puntos por reto completado
+  xpPerChallenge   Int    @default(5)     // XP por reto completado
+  
+  // Contenido educativo
+  concepts        String[]  // Conceptos cubiertos (ej: ["variables", "const", "let"])
+  difficulty      String    // "beginner", "intermediate", "advanced"
+  
+  // Relaciones
+  challenges      Challenge[]
+  userLevelProgress UserLevelProgress[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@unique([worldId, order])
+  @@index([worldId, order])
+}
+
+// Retos/challenges dentro de cada nivel
+model Challenge {
+  id              String    @id @default(cuid())
+  levelId         String
+  level           Level     @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  
+  order           Int       // Orden dentro del nivel (1-3)
+  title           String
+  description     String    @db.Text
+  instruction     String    @db.Text // Instrucciones para el usuario
+  
+  // Tipo de reto
+  type            String    // "code", "quiz", "drag-drop"
+  
+  // Contenido del reto
+  initialCode     String?   @db.Text // Código inicial para retos de código
+  expectedSolution String? @db.Text // Solución esperada
+  testCase       Json?    // Test cases para validar solución
+  quizOptions     Json?    // Opciones para quizzes
+  correctAnswer   String?   // Respuesta correcta
+  
+  // Configuración de puntos
+  points          Int       @default(10)
+  xp              Int       @default(5)
+  
+  // Estado
+  isRequired      Boolean  @default(false) // Si es obligatorio para completar el nivel
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@unique([levelId, order])
+  @@index([levelId, order])
+}
+
+// Progreso del usuario en cada mundo
+model UserWorldProgress {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  worldId         String
+  world           World     @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  
+  // Estado del mundo
+  isUnlocked      Boolean  @default(false)
+  isCompleted     Boolean  @default(false)
+  unlockedAt      DateTime?
+  completedAt      DateTime?
+  
+  // Estadísticas del mundo
+  levelsCompleted  Int       @default(0)
+  challengesSolved Int       @default(0)
+  pointsEarned    Int       @default(0)
+  
+  // Mejores tiempos
+  bestTime        Int?      // Segundos para completar el mundo
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@unique([userId, worldId])
+  @@index([userId, worldId])
+}
+
+// Progreso del usuario en cada nivel
+model UserLevelProgress {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  levelId         String
+  level           Level     @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  
+  // Estado del nivel
+  isUnlocked      Boolean  @default(false)
+  isCompleted     Boolean  @default(false)
+  unlockedAt      DateTime?
+  completedAt      DateTime?
+  
+  // Estadísticas del nivel
+  challengesSolved Int       @default(0)
+  challengesTotal  Int       @default(0)
+  pointsEarned    Int       @default(0)
+  xpEarned        Int       @default(0)
+  
+  // Intentos
+  attempts        Int       @default(0)
+  
+  // Mejor puntuación
+  bestScore       Int?      // Puntuación más alta
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@unique([userId, levelId])
+  @@index([userId, levelId])
+}
+
+// Intentos del usuario en retos
+model ChallengeAttempt {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challengeId     String
+  challenge       Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  
+  // Resultado del intento
+  isPassed        Boolean  @default(false)
+  isCorrect       Boolean  @default(false) // Solo para quizzes
+  
+  // Solución del usuario
+  solution       String?   @db.Text
+  selectedAnswer  String?   // Para quizzes
+  
+  // Puntos obtenidos
+  pointsEarned    Int       @default(0)
+  xpEarned        Int       @default(0)
+  
+  // Tiempo
+  timeSpent       Int       @default(0) // Segundos
+  
+  // Retroalimentación
+  feedback        String?   @db.Text
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([userId, challengeId])
+  @@index([userId, createdAt])
+}
+
+// Insignias/Badges
+model Badge {
+  id              String    @id @default(cuid())
+  name            String
+  description     String    @db.Text
+  icon            String    // Emoji o icono
+  color           String    // Color de la insignia
+  
+  // Criterios para obtener la insignia
+  type            String    // "points", "levels", "challenges", "streak", "speed"
+  criteria        Json?    // Criterios específicos en formato JSON
+  
+  // Relaciones
+  userBadges      UserBadge[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([type])
+}
+
+// Insignias obtenidas por el usuario
+model UserBadge {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId         String
+  badge           Badge     @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  
+  earnedAt        DateTime  @default(now())
+  
+  @@unique([userId, badgeId])
+  @@index([userId])
+}
+
+// Historial de niveles del usuario
+model LevelHistory {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  level           Int       // Nivel alcanzado
+  totalXP        Int       // XP total en ese momento
+  xpGained        Int       // XP ganado en ese nivel
+  unlockedBadges String[] // IDs de insignias desbloqueadas
+  
+  achievedAt      DateTime  @default(now())
+  
+  @@index([userId, level])
+  @@index([userId])
+}

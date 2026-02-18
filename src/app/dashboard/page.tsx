@@ -1,13 +1,14 @@
-import { getServerSession } from "next-auth"
+import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { DailyChallengeCard } from "@/components/dashboard/DailyChallengeCard"
 import Link from "next/link"
 import { BookOpen, Target, Trophy, Zap } from "lucide-react"
 
 export default async function DashboardPage() {
-  const session = await getServerSession()
+  const session = await auth()
 
   if (!session?.user) {
     redirect("/auth/login")
@@ -41,6 +42,12 @@ export default async function DashboardPage() {
             JogaBoneto
           </h1>
           <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/leaderboard">
+                <Trophy className="h-4 w-4 mr-2" />
+                Ranking
+              </Link>
+            </Button>
             <span className="text-sm text-muted-foreground">
               Hola, {session.user.name || session.user.email}
             </span>
@@ -53,6 +60,9 @@ export default async function DashboardPage() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="space-y-8">
+          {/* Daily Challenge Card */}
+          <DailyChallengeCard userId={session.user.id} />
+
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>

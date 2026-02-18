@@ -57,14 +57,20 @@ export async function POST(request: Request) {
     })
 
     // Unlock first world
-    await prisma.userWorldProgress.create({
-      data: {
-        userId: user.id,
-        worldId: "world-1", // This would be the ID of the first world
-        isUnlocked: true,
-        unlockedAt: new Date(),
-      },
+    const firstWorld = await prisma.world.findFirst({
+      where: { order: 1 },
     })
+
+    if (firstWorld) {
+      await prisma.userWorldProgress.create({
+        data: {
+          userId: user.id,
+          worldId: firstWorld.id,
+          isUnlocked: true,
+          unlockedAt: new Date(),
+        },
+      })
+    }
 
     return NextResponse.json(
       {

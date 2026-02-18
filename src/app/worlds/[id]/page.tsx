@@ -1,4 +1,4 @@
-import { getServerSession } from "next-auth"
+import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,7 @@ import Link from "next/link"
 import { ChevronLeft, CheckCircle2, Circle, Lock } from "lucide-react"
 
 export default async function WorldPage({ params }: { params: { id: string } }) {
-  const session = await getServerSession()
+  const session = await auth()
 
   if (!session?.user) {
     redirect("/auth/login")

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
+import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { updateLeaderboardForUser } from "@/lib/leaderboard"
+import { evaluateJavaScript, type EvaluationConfig } from "@/lib/evaluation/evaluator"
 import { z } from "zod"
 
 const submitSchema = z.object({
@@ -10,7 +12,7 @@ const submitSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession()
+    const session = await auth()
 
     if (!session?.user) {
       return NextResponse.json(
@@ -106,25 +108,47 @@ export async function POST(request: Request) {
   }
 }
 
-function evaluateJavaScriptCode(code: string, testCase: any): any {
+/**
+ * Evalúa código JavaScript usando el sistema inteligente de evaluación
+ */
+async function evaluateJavaScriptCode(code: string, testCase: any): Promise<any> {
   try {
-    // Basic syntax check
-    const FunctionConstructor = Function.constructor
-    new FunctionConstructor(code)
+    // Configurar evaluación
+    const config: EvaluationConfig = {
+      code,
+      testCase: testCase || undefined,
+      timeout: 5000,
+    }
 
-    // In production, use vm2 or isolates-vm for safe execution
-    // This is a very basic placeholder
-    return {
-      success: true,
-      output: "Código ejecutado con éxito (evalución simplificada)",
-      feedback: "¡Excelente trabajo! +10 puntos, +5 XP",
+    // Usar el evaluador inteligente
+    const result = await evaluateJavaScript(config)
+
+    if (result.passed) {
+      return {
+        success: true,
+        passed: true,
+        output: result.feedback || "¡Código correcto!",
+        feedback: `¡Excelente trabajo! +10 puntos, +5 XP`,
+        hints: result.hints || [],
+      }
+    } else {
+      return {
+        success: false,
+        passed: false,
+        error: result.error || "Código incorrecto",
+        output: result.feedback || "Tu código necesita ajustes",
+        feedback: result.feedback || "Inténtalo de nuevo",
+        hints: result.hints || [],
+      }
     }
   } catch (error) {
     return {
       success: false,
-      error: "Error de sintaxis",
+      passed: false,
+      error: "Error al evaluar el código",
       output: error instanceof Error ? error.message : String(error),
-      feedback: "Revisa tu código. Parece haber un error de sintaxis.",
+      feedback: "Revisa tu código. Parece haber un error.",
+      hints: ["Verifica la sintaxis de tu código.", "Asegúrate de usar las estructuras correctas."],
     }
   }
 }
@@ -239,5 +263,10 @@ async function updateUserProgress(userId: string, challenge: any, result: any) {
         pointsEarned: challenge.points,
       },
     })
+  }
+
+  // Update leaderboard after successful challenge completion
+  if (result.success) {
+    await updateLeaderboardForUser(userId)
   }
 }
